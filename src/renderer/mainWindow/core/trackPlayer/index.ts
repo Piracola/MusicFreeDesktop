@@ -138,7 +138,11 @@ class TrackPlayer {
         const repeatMode = syncKV.get('player.repeatMode') ?? RepeatMode.Queue;
         const savedMusic = syncKV.get('player.currentMusic');
         const savedProgress = syncKV.get('player.currentProgress') ?? 0;
-        const savedQuality = syncKV.get('player.currentQuality') ?? 'standard';
+        // 音质以「默认音质」配置为准，其次才回退到上次播放的音质
+        const savedQuality =
+            appConfig.getConfigByKey('playMusic.defaultQuality') ??
+            syncKV.get('player.currentQuality') ??
+            'standard';
         const validQuality: IMusic.IQualityKey = QUALITY_KEYS.includes(savedQuality as any)
             ? (savedQuality as IMusic.IQualityKey)
             : 'standard';
@@ -443,7 +447,15 @@ class TrackPlayer {
     async setQuality(quality: IMusic.IQualityKey): Promise<boolean> {
         const current = this.playQueue.getCurrentMusic();
         const prevQuality = store.get(qualityAtom);
-        if (!current || quality === prevQuality) return true;
+
+        // 没有正在播放的歌时也要把选择落下来，否则这次操作等于什么都没做
+        if (!current) {
+            store.set(qualityAtom, quality);
+            syncKV.set('player.currentQuality', quality);
+            return true;
+        }
+
+        if (quality === prevQuality) return true;
 
         const currentTime = store.get(progressAtom).currentTime;
         const wasPlaying = this.audioController.playerState === PlayerState.Playing;
@@ -626,9 +638,9 @@ class TrackPlayer {
         this.resetProgress();
         this.consecutiveErrors++;
 
-        // 播放出错时重置音质为默认，避免因高音质源不可用导致连续失败
+        // 播放出错时本轮重置为默认音质，避免因高音质源不可用导致连续失败。
+        // 只改运行时状态，不写回持久存储：写回去的话下次启动就把用户选的默认音质吃掉了。
         store.set(qualityAtom, 'standard');
-        syncKV.set('player.currentQuality', 'standard');
 
         const behavior = appConfig.getConfigByKey('playMusic.playError') ?? 'skip';
 
