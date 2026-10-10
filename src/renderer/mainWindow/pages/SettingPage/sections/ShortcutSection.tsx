@@ -7,6 +7,7 @@ import { Toggle } from '@renderer/mainWindow/components/ui/Toggle';
 import { useConfigValue } from '@renderer/common/hooks/useConfigValue';
 import appConfig from '@infra/appConfig/renderer';
 import shortCutRenderer from '@infra/shortCut/renderer';
+import { domKeyToElectronKey } from '@infra/shortCut/common/accelerator';
 import type {
     ShortCutAction,
     IShortCutBinding,
@@ -50,6 +51,12 @@ const KEY_DISPLAY_MAP: Record<string, string> = {
     Control: 'Ctrl',
     Meta: 'Win',
     ' ': 'Space',
+    Space: 'Space',
+    // 新配置存 Electron 键名，旧配置里可能还是 DOM 键名
+    Up: '↑',
+    Down: '↓',
+    Left: '←',
+    Right: '→',
     ArrowUp: '↑',
     ArrowDown: '↓',
     ArrowLeft: '←',
@@ -127,9 +134,10 @@ export function ShortcutSection() {
             if (event.shiftKey) keys.push('Shift');
 
             const key = event.key;
-            const normalized = key.length === 1 ? key.toUpperCase() : key;
+            // 录下来的是 DOM 名字（ArrowUp…），统一存成 Electron Accelerator 认的写法
+            const normalized = domKeyToElectronKey(key);
             if (!['Control', 'Meta', 'Alt', 'Shift'].includes(normalized)) {
-                keys.push(normalized);
+                keys.push(normalized.length === 1 ? normalized.toUpperCase() : normalized);
             }
 
             if (keys.length === 0) return;

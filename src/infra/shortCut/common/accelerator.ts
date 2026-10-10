@@ -156,8 +156,50 @@ export function keyboardEventToElectronAccelerator(e: KeyboardEvent): string[] {
 
     // 排除单独的修饰键
     if (!['Control', 'Meta', 'Shift', 'Alt'].includes(e.key)) {
-        parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+        const key = domKeyToElectronKey(e.key);
+        parts.push(key.length === 1 ? key.toUpperCase() : key);
     }
 
     return parts;
+}
+
+/**
+ * DOM KeyboardEvent.key → Electron Accelerator 键名
+ *
+ * 录制时拿到的是浏览器事件里的名字，Electron 的 globalShortcut 只认自己那张表
+ * （见 shell/common/keyboard_util.cc），对不上时 register 会直接抛
+ * "Invalid accelerator"，注册必定失败。
+ */
+const DOM_KEY_TO_ELECTRON_KEY: Record<string, string> = {
+    ArrowUp: 'Up',
+    ArrowDown: 'Down',
+    ArrowLeft: 'Left',
+    ArrowRight: 'Right',
+    ' ': 'Space',
+    AudioVolumeUp: 'VolumeUp',
+    AudioVolumeDown: 'VolumeDown',
+    AudioVolumeMute: 'VolumeMute',
+    MediaTrackNext: 'MediaNextTrack',
+    MediaTrackPrevious: 'MediaPreviousTrack',
+};
+
+/** 单个键名的 DOM → Electron 归一化；认不出来的原样返回 */
+export function domKeyToElectronKey(key: string): string {
+    return DOM_KEY_TO_ELECTRON_KEY[key] ?? key;
+}
+
+/**
+ * 把已存的 accelerator 归一化成 Electron 认的写法。
+ *
+ * 用于兼容历史配置（方向键曾按 DOM 名字存成 ArrowUp 等），
+ * 注册全局快捷键前必须先过一遍。
+ */
+export function normalizeElectronAccelerator(accelerator: string): string {
+    // 空格键历史上可能存成 "CmdOrCtrl+ "，直接 split('+') 会把键吃掉
+    const parts = accelerator.replace(/\+\s*$/, '+Space').split('+');
+    return parts
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .map((part) => domKeyToElectronKey(part))
+        .join('+');
 }
